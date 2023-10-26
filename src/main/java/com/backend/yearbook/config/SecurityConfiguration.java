@@ -30,7 +30,7 @@ public class SecurityConfiguration {
     @Autowired
     private JwtEntryPoint authEntryPoint;
     private static final String[] WHITE_LIST_URL = {
-        "/api/**",
+        "/api/v1/auth/**",
         "/v2/api-docs",
         "/v3/api-docs",
         "/v3/api-docs/**",

@@ -1,5 +1,6 @@
 package com.backend.yearbook.config;
 
+import com.backend.yearbook.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -8,11 +9,14 @@ import org.springframework.context.annotation.Configuration;
 
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -25,7 +29,7 @@ import static com.backend.yearbook.user.Permissions.*;
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
-
+@EnableMethodSecurity
 public class SecurityConfiguration {
     @Autowired
     private JwtEntryPoint authEntryPoint;
@@ -33,13 +37,14 @@ public class SecurityConfiguration {
         "/api/v1/auth/**",
       };
     private final JWTAuthFilter jwtAuthFilter;
-    private final AuthenticationProvider authProvider;
+    private final PasswordEncoder passwordEncoder;
+    private final UserService userService;
 @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
 
     httpSecurity
         .csrf(AbstractHttpConfigurer::disable)
-
+        .cors(Customizer.withDefaults())
         .authorizeHttpRequests(req ->
             req.requestMatchers(WHITE_LIST_URL)
                 .permitAll()
@@ -52,25 +57,22 @@ public class SecurityConfiguration {
                 .anyRequest().authenticated()
         )
         //.exceptionHandling( ex -> ex.authenticationEntryPoint(authEntryPoint))
-      //  .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-        .authenticationProvider(authProvider)
+        .authenticationProvider(authenticationProvider())
         .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
 
     return httpSecurity.build();
 }
+
+
     @Bean
-    public CorsFilter corsFilter() {
-        UrlBasedCorsConfigurationSource source =
-            new UrlBasedCorsConfigurationSource();
-        CorsConfiguration config = new CorsConfiguration();
-        config.setAllowCredentials(true);
-        config.addAllowedOrigin("http://localhost:3000/");
-        config.addAllowedOriginPattern("*");
-        config.addAllowedHeader("*");
-        config.addAllowedMethod("*");
-        source.registerCorsConfiguration("/**", config);
-        return new CorsFilter(source);
+    AuthenticationProvider authenticationProvider(){
+        DaoAuthenticationProvider authenticationProvider=new DaoAuthenticationProvider();
+        authenticationProvider.setUserDetailsService(userService.userDetailsService());
+        authenticationProvider.setPasswordEncoder(passwordEncoder);
+        return authenticationProvider;
     }
+
 }

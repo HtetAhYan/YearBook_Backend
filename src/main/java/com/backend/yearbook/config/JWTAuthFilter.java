@@ -1,12 +1,15 @@
 package com.backend.yearbook.config;
 
+import com.backend.yearbook.service.UserService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -20,7 +23,8 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class JWTAuthFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
-    private final UserDetailsService userDetailsService;
+    private final UserService userService;
+
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
@@ -31,7 +35,7 @@ public class JWTAuthFilter extends OncePerRequestFilter {
         final String jwt;
         final String userEmail;
 
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        if (StringUtils.isEmpty(authHeader) || !StringUtils.startsWith(authHeader,"Bearer")) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -40,9 +44,10 @@ public class JWTAuthFilter extends OncePerRequestFilter {
         userEmail = jwtService.extractUsername(jwt);
 
         try {
-            if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
+            if (StringUtils.isNotEmpty(userEmail)  && SecurityContextHolder.getContext().getAuthentication() == null) {
+                UserDetails userDetails = userService.userDetailsService().loadUserByUsername(userEmail);
                 if (jwtService.isTokenValid(jwt, userDetails)) {
+                    SecurityContext securityContext=SecurityContextHolder.createEmptyContext();
                     UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
                         userDetails,
                         null,
@@ -51,7 +56,8 @@ public class JWTAuthFilter extends OncePerRequestFilter {
                     authenticationToken.setDetails(
                         new WebAuthenticationDetailsSource().buildDetails(request)
                     );
-                    SecurityContextHolder.getContext().setAuthentication(authenticationToken);
+                    securityContext.setAuthentication(authenticationToken);
+                    SecurityContextHolder.setContext(securityContext);
                 } else {
                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                     response.getWriter().write("Authentication failed: Invalid token");
